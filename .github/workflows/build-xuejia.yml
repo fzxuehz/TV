@@ -1,0 +1,46 @@
+name: Build XueJia TV APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: fongmi
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Prepare signing keystore
+        run: |
+          if [ ! -f app/keystore/xuejia.jks ]; then
+            mkdir -p app/keystore
+            keytool -genkeypair -v -keystore app/keystore/xuejia.jks -alias xuejia -keyalg RSA -keysize 2048 -validity 20000 -storepass xuejiatv2026 -keypass xuejiatv2026 -dname "CN=XueJia TV, OU=Family, O=Xue, L=Manila, C=PH"
+            git config user.name "fzxuehz"
+            git config user.email "fzxuehz@users.noreply.github.com"
+            git add -f app/keystore/xuejia.jks
+            git commit -m "chore: add stable signing keystore"
+            git push
+          fi
+          printf 'storeFile=keystore/xuejia.jks\nkeyAlias=xuejia\nstorePassword=xuejiatv2026\n' > local.properties
+
+      - name: Build leanback release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleLeanbackRelease --no-daemon --stacktrace
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xuejia-tv-apk
+          if-no-files-found: error
+          path: app/build/outputs/**/*.apk
